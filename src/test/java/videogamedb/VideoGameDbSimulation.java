@@ -15,6 +15,11 @@ public class VideoGameDbSimulation extends Simulation {
             .acceptHeader("application/json") //Asignamos headers por defecto tanto para aceptar como para mandar contenido
             .contentTypeHeader("application/json");
 
+
+    //Feeder (inyector de datos)
+    //Creo un json con los datos de todos los juegos de la API en formato json
+    private static FeederBuilder.FileBased<Object> jsonFeeder = jsonFile("data/gameJsonFile.json").random(); //Elegimos una entrada random de nuestro archivo json
+
     //LLamadas a metodos (http)
 
     //GET ALL GAMES
@@ -31,19 +36,24 @@ public class VideoGameDbSimulation extends Simulation {
             .check(jmesPath("token").saveAs("authToken"))); //Guardamos el token en una variable para usarlo en la prueba
 
     //POST GAME
-    private static ChainBuilder postNewGame = exec(http("Post New Game")
-            .post("/videogame")
-            .header("Authorization", "Bearer #{authToken}") //Indicamos con #{} que vamos a usar ese token en la prueba/newGameTemplate.json
-            .body(ElFileBody("bodies/newGameTemplate.json")).asJson()); //Usamos un archivo json con el template del videojuego
+    private static ChainBuilder postNewGame =
+            feed(jsonFeeder) //Usamos el feeder para inyectar datos
+                .exec(http("Post New Game - #{name}") //#{name} sera el nombre de un juego aleatorio de nuestro json
+                .post("/videogame")
+                .header("Authorization", "Bearer #{authToken}") //Indicamos con #{} que vamos a usar ese token en la prueba/newGameTemplate.json
+                .body(ElFileBody("bodies/newGameTemplate.json")).asJson()); //Usamos un archivo json con el template del videojuego (ElFileBody = FileBody)
 
     //GET LAST POSTED GAME
-    private static ChainBuilder getLastPostedGame = exec(http("Get Last Posted Game")
-            .get("/videogame/1")); //Luego cambio el hard code del 1
+    private static ChainBuilder getLastPostedGame = exec(http("Get Last Posted Game - #{name}")
+            .get("/videogame/#{id}") //Id del juego que acabamos de postear
+            .check(jmesPath("name").isEL("#{name}"))); //Comprobamos que el nombre del juego sea el mismo que el que acabamos de postear (isEL = is equal)
 
     //DELETE LAST POSTED GAME
-    private static ChainBuilder deleteLastPostedGame = exec(http("Delete Last Posted Game")
-            .delete("/videogame/1")//Luego cambio el hard code del 1
-            .header("Authorization", "Bearer #{authToken}"));
+    private static ChainBuilder deleteLastPostedGame =
+            exec(http("Delete Last Posted Game - #{name}")
+            .delete("/videogame/#{id}")
+            .header("Authorization", "Bearer #{authToken}")
+            .check(bodyString().is("Video game deleted"))); //Comprobamos que el mensaje de respuesta al borrar sea "Video game deleted"
 
 
     //Definicion del escenario
@@ -64,7 +74,7 @@ public class VideoGameDbSimulation extends Simulation {
     //Hago un setUp para cargar la simulacion, inyectando un usuario al inicio
     {
         setUp(
-                scn.injectOpen(atOnceUsers(1))
+                scn.injectOpen(atOnceUsers(1)) //Inyectamos un usuario al inicio
         ).protocols(httpProtocol);
     }
 }
