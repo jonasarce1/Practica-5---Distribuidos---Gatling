@@ -62,6 +62,15 @@ public class VideoGameDbSimulation extends Simulation {
             .get("/videogame/#{id}") //Id del juego que acabamos de postear
             .check(jmesPath("name").isEL("#{name}"))); //Comprobamos que el nombre del juego sea el mismo que el que acabamos de postear (isEL = is equal)
 
+
+    //UPDATE LAST POSTED GAME (menos el nombre, para evitar problemas al comprobar el nombre si otros usuarios estan tratanado con el mismo juego)
+    private static ChainBuilder putLastPostedGame = exec(http("Put Last Posted Game - #{name}")
+            .put("/videogame/#{id}")
+            .header("Authorization", "Bearer #{authToken}")
+            .body(ElFileBody("bodies/updateGameTemplate.json")).asJson() //Actualizamos segun el archivo update (solo cambiamos la categoria a Modified)
+            .check(jmesPath("category").isEL("Modified"))); //Comprobamos que la categoria del juego sea "Modified" que es el valor que actualice
+
+
     //DELETE LAST POSTED GAME
     private static ChainBuilder deleteLastPostedGame =
             exec(http("Delete Last Posted Game - #{name}")
@@ -80,6 +89,8 @@ public class VideoGameDbSimulation extends Simulation {
             .exec(postNewGame)
             .pause(2)
             .exec(getLastPostedGame)
+            .pause(2)
+            .exec(putLastPostedGame)
             .pause(2)
             .exec(deleteLastPostedGame);
 
